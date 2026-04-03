@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ABC判定 — AI作業振り分けツール</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;500;700;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e17;--surface:#111827;--surface2:#1a2332;--surface3:#243044;
+  --border:#2a3a50;--border-glow:#3b5998;
+  --text:#e2e8f0;--text-dim:#8899aa;--text-bright:#f8fafc;
+  --green:#22c55e;--green-dim:#166534;--green-glow:rgba(34,197,94,.15);
+  --yellow:#eab308;--yellow-dim:#854d0e;--yellow-glow:rgba(234,179,8,.12);
+  --red:#ef4444;--red-dim:#991b1b;--red-glow:rgba(239,68,68,.12);
+  --cyan:#06b6d4;--cyan-dim:#155e75;--cyan-glow:rgba(6,182,212,.1);
+  --mono:'IBM Plex Mono',monospace;--sans:'Noto Sans JP',sans-serif;
+  --radius:6px;
+}
+html{font-size:15px}
+body{
+  font-family:var(--sans);background:var(--bg);color:var(--text);
+  min-height:100vh;line-height:1.7;
+  background-image:
+    radial-gradient(ellipse 80% 60% at 50% 0%,rgba(59,89,152,.08),transparent),
+    radial-gradient(circle at 80% 80%,rgba(6,182,212,.04),transparent);
+}
+
+/* ===== LAYOUT ===== */
+.app{max-width:720px;margin:0 auto;padding:24px 16px 80px}
+
+/* ===== HEADER ===== */
+.header{text-align:center;padding:40px 0 32px;position:relative}
+.header::after{
+  content:'';display:block;width:60px;height:2px;
+  background:linear-gradient(90deg,var(--cyan),var(--green));
+  margin:20px auto 0;border-radius:1px;
+}
+.header h1{
+  font-family:var(--mono);font-size:1.6rem;font-weight:600;
+  color:var(--text-bright);letter-spacing:-.02em;
+}
+.header p{color:var(--text-dim);font-size:.82rem;margin-top:8px;font-weight:300}
+
+/* ===== PHASE INDICATOR ===== */
+.phase-bar{
+  display:flex;gap:4px;margin:0 0 32px;padding:0 4px;
+}
+.phase-dot{
+  flex:1;height:3px;border-radius:2px;background:var(--border);
+  transition:background .4s,box-shadow .4s;
+}
+.phase-dot.active{background:var(--cyan);box-shadow:0 0 8px var(--cyan-glow)}
+.phase-dot.done{background:var(--green)}
+
+/* ===== QUESTION CARDS ===== */
+.screen{display:none;animation:fadeIn .35s ease}
+.screen.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+.q-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:28px 24px;
+  position:relative;overflow:hidden;
+}
+.q-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--cyan),transparent);
+}
+.q-label{
+  font-family:var(--mono);font-size:.7rem;color:var(--cyan);
+  text-transform:uppercase;letter-spacing:.12em;margin-bottom:12px;
+}
+.q-text{font-size:1.05rem;font-weight:500;color:var(--text-bright);margin-bottom:24px}
+
+.q-options{display:flex;flex-direction:column;gap:10px}
+.q-btn{
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:14px 18px;
+  color:var(--text);font-size:.92rem;font-family:var(--sans);
+  cursor:pointer;transition:all .2s;text-align:left;
+  display:flex;align-items:center;gap:12px;
+}
+.q-btn:hover{border-color:var(--cyan);background:var(--surface3);transform:translateX(4px)}
+.q-btn .key{
+  font-family:var(--mono);font-size:.7rem;color:var(--text-dim);
+  background:var(--bg);padding:3px 8px;border-radius:3px;
+  min-width:28px;text-align:center;flex-shrink:0;
+}
+
+/* ===== RESULT CARDS ===== */
+.result-card{
+  border-radius:var(--radius);padding:28px 24px;
+  position:relative;overflow:hidden;
+}
+.result-card.type-a{background:var(--green-glow);border:1px solid var(--green-dim)}
+.result-card.type-b{background:var(--yellow-glow);border:1px solid var(--yellow-dim)}
+.result-card.type-c{background:var(--red-glow);border:1px solid var(--red-dim)}
+
+.result-badge{
+  display:inline-flex;align-items:center;gap:8px;
+  font-family:var(--mono);font-size:1.3rem;font-weight:600;
+  margin-bottom:8px;
+}
+.result-card.type-a .result-badge{color:var(--green)}
+.result-card.type-b .result-badge{color:var(--yellow)}
+.result-card.type-c .result-badge{color:var(--red)}
+
+.result-title{font-size:.95rem;color:var(--text-bright);font-weight:500;margin-bottom:4px}
+.result-desc{font-size:.82rem;color:var(--text-dim);font-weight:300;line-height:1.6}
+.result-token{
+  display:inline-block;margin-top:12px;
+  font-family:var(--mono);font-size:.72rem;
+  padding:4px 10px;border-radius:3px;
+  background:rgba(255,255,255,.05);color:var(--text-dim);
+}
+
+/* ===== PROMPT TEMPLATE ===== */
+.prompt-section{margin-top:24px}
+.prompt-section h3{
+  font-family:var(--mono);font-size:.75rem;color:var(--cyan);
+  text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;
+}
+.prompt-block{
+  background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px;position:relative;
+  margin-bottom:12px;
+}
+.prompt-block pre{
+  font-family:var(--mono);font-size:.8rem;color:var(--text);
+  white-space:pre-wrap;word-break:break-all;line-height:1.8;
+}
+.prompt-step-label{
+  font-family:var(--mono);font-size:.65rem;
+  color:var(--text-dim);margin-bottom:8px;
+  padding-bottom:6px;border-bottom:1px solid var(--border);
+}
+.copy-btn{
+  position:absolute;top:10px;right:10px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:4px;padding:5px 10px;
+  font-family:var(--mono);font-size:.65rem;color:var(--text-dim);
+  cursor:pointer;transition:all .2s;
+}
+.copy-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.copy-btn.copied{color:var(--green);border-color:var(--green)}
+
+/* ===== RULES SIDEBAR ===== */
+.rules{
+  margin-top:28px;padding:20px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);
+}
+.rules h3{
+  font-family:var(--mono);font-size:.72rem;color:var(--yellow);
+  text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px;
+}
+.rule-item{
+  display:flex;gap:10px;align-items:flex-start;
+  margin-bottom:10px;font-size:.82rem;color:var(--text-dim);
+}
+.rule-item .num{
+  font-family:var(--mono);font-size:.7rem;color:var(--yellow);
+  flex-shrink:0;padding-top:2px;
+}
+
+/* ===== ACTIONS ===== */
+.actions{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap}
+.btn{
+  font-family:var(--sans);font-size:.85rem;font-weight:500;
+  padding:12px 20px;border-radius:var(--radius);cursor:pointer;
+  border:1px solid var(--border);transition:all .2s;
+}
+.btn-primary{background:var(--cyan-dim);color:var(--text-bright);border-color:var(--cyan-dim)}
+.btn-primary:hover{background:var(--cyan);color:var(--bg)}
+.btn-ghost{background:transparent;color:var(--text-dim)}
+.btn-ghost:hover{border-color:var(--text-dim);color:var(--text)}
+
+/* ===== FOOTER ===== */
+.footer{
+  text-align:center;margin-top:48px;padding-top:24px;
+  border-top:1px solid var(--border);
+  font-size:.72rem;color:var(--text-dim);font-family:var(--mono);
+}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:480px){
+  .app{padding:16px 12px 60px}
+  .header h1{font-size:1.3rem}
+  .q-card{padding:20px 16px}
+  .result-card{padding:20px 16px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="header">
+    <h1>ABC_JUDGE</h1>
+    <p>AI作業振り分け — 5秒で判定、そのまま投げる</p>
+  </div>
+
+  <div class="phase-bar" id="phaseBar"></div>
+
+  <!-- ===== SCREEN: START ===== -->
+  <div class="screen active" id="screenStart">
+    <div class="q-card">
+      <div class="q-label">作業を分類する</div>
+      <div class="q-text">これから行う作業の内容を確認します。<br>質問に答えるだけでA/B/Cパターンと最適プロンプトが決まります。</div>
+      <div class="q-options">
+        <button class="q-btn" onclick="startQuiz()">
+          <span class="key">▶</span> 判定を開始する
+        </button>
+      </div>
+    </div>
+
+    <div class="rules" style="margin-top:20px">
+      <h3>パターン概要</h3>
+      <div class="rule-item"><span class="num" style="color:var(--green)">A</span> 単発プロンプト — 1関数修正・エラー対応（トークン戦略 P2相当）</div>
+      <div class="rule-item"><span class="num" style="color:var(--yellow)">B</span> 2段階実行 — 設計→実装の分離（トークン戦略 P3相当）</div>
+      <div class="rule-item"><span class="num" style="color:var(--red)">C</span> 分割解析 — 全体把握が必要な大規模作業（P1→P3段階移行）</div>
+    </div>
+  </div>
+
+  <!-- ===== SCREEN: QUESTIONS ===== -->
+  <div class="screen" id="screenQuiz">
+    <div class="q-card">
+      <div class="q-label" id="qLabel">Q1 / 4</div>
+      <div class="q-text" id="qText"></div>
+      <div class="q-options" id="qOptions"></div>
+    </div>
+  </div>
+
+  <!-- ===== SCREEN: RESULT ===== -->
+  <div class="screen" id="screenResult">
+    <div id="resultContent"></div>
+  </div>
+
+</div>
+
+<script>
+// ===== QUESTION DATA =====
+var questions = [
+  {
+    text: '触るのは1つの関数だけ？',
+    options: [
+      { label: 'はい — 1関数で完結する', value: 'a' },
+      { label: 'いいえ — 複数箇所に影響する', value: 'next' }
+    ]
+  },
+  {
+    text: 'エラー箇所や修正内容を1〜2行で説明できる？',
+    options: [
+      { label: 'はい — 明確に特定できる', value: 'a' },
+      { label: 'いいえ — 説明が複雑になる', value: 'next' }
+    ]
+  },
+  {
+    text: '新機能の追加、または既存ロジックの変更？',
+    options: [
+      { label: 'はい — 新機能 or ロジック変更', value: 'b' },
+      { label: 'いいえ — もっと広範囲', value: 'next' }
+    ]
+  },
+  {
+    text: '原因箇所は特定できている？',
+    options: [
+      { label: 'はい — 場所は分かるが複数関数にまたがる', value: 'b' },
+      { label: 'いいえ — どこが原因か分からない / 全体を見たい', value: 'c' }
+    ]
+  }
+];
+
+var currentQ = 0;
+var result = null;
+var totalSteps = questions.length;
+
+function initPhaseBar() {
+  var bar = document.getElementById('phaseBar');
+  bar.innerHTML = '';
+  for (var i = 0; i < totalSteps; i++) {
+    var dot = document.createElement('div');
+    dot.className = 'phase-dot';
+    dot.id = 'phase-' + i;
+    bar.appendChild(dot);
+  }
+}
+
+function updatePhaseBar(step) {
+  for (var i = 0; i < totalSteps; i++) {
+    var dot = document.getElementById('phase-' + i);
+    if (!dot) continue;
+    dot.className = 'phase-dot';
+    if (i < step) dot.className += ' done';
+    if (i === step) dot.className += ' active';
+  }
+}
+
+function showScreen(id) {
+  var screens = document.querySelectorAll('.screen');
+  for (var i = 0; i < screens.length; i++) {
+    screens[i].className = 'screen';
+  }
+  document.getElementById(id).className = 'screen active';
+}
+
+function startQuiz() {
+  currentQ = 0;
+  result = null;
+  initPhaseBar();
+  showQuestion(0);
+  showScreen('screenQuiz');
+}
+
+function showQuestion(index) {
+  var q = questions[index];
+  document.getElementById('qLabel').textContent = 'Q' + (index + 1) + ' / ' + totalSteps;
+  document.getElementById('qText').textContent = q.text;
+
+  var opts = document.getElementById('qOptions');
+  opts.innerHTML = '';
+  for (var i = 0; i < q.options.length; i++) {
+    (function(opt, idx) {
+      var btn = document.createElement('button');
+      btn.className = 'q-btn';
+      btn.innerHTML = '<span class="key">' + (idx + 1) + '</span> ' + opt.label;
+      btn.onclick = function() { answer(opt.value); };
+      opts.appendChild(btn);
+    })(q.options[i], i);
+  }
+
+  updatePhaseBar(index);
+}
+
+function answer(val) {
+  if (val === 'a' || val === 'b' || val === 'c') {
+    result = val;
+    for (var i = currentQ; i < totalSteps; i++) {
+      var dot = document.getElementById('phase-' + i);
+      if (dot) dot.className = 'phase-dot done';
+    }
+    showResult(result);
+    return;
+  }
+  currentQ++;
+  if (currentQ < questions.length) {
+    showQuestion(currentQ);
+  } else {
+    result = 'c';
+    showResult(result);
+  }
+}
+
+// ===== RESULT DATA =====
+var results = {
+  a: {
+    badge: 'A',
+    title: '単発プロンプト',
+    desc: '1関数の修正・エラー対応。AIに直接投げて最終コードを受け取る。',
+    token: 'トークン戦略: P2（2〜3サンプル行のみ添付）',
+    prompts: [
+      {
+        label: 'そのまま投げるプロンプト',
+        text: '目的：\n（何をしたいかを1行で）\n\nこのコードを修正して\n・変更は必要最小限にして\n・他の部分は絶対に触らない\n・最終コードだけ出して\n\n制約：\n・ES5準拠（アロー関数・バッククォート禁止）\n・callGAS()パターン使用\n・try-catch + Logger.log 維持'
+      }
+    ]
+  },
+  b: {
+    badge: 'B',
+    title: '2段階実行（設計 → 実装）',
+    desc: '新機能追加・複数関数にまたがるロジック変更。設計ドラフトと実装を分けて精度を上げる。',
+    token: 'トークン戦略: P3（シート単位分割、1責務ごとに会話分離）',
+    prompts: [
+      {
+        label: 'Step 1 — 設計ドラフト',
+        text: '目的：\n（やりたいこと）\n\nこの機能を実装して\n・シンプルでOK\n・既存構造に合わせて\n・過剰な最適化は不要\n\n制約：\n・ES5準拠（アロー関数・バッククォート禁止）\n・callGAS()パターン使用\n・plant_idフィルタ前提\n・try-catch + Logger.log 維持'
+      },
+      {
+        label: 'Step 2 — レビュー＆仕上げ',
+        text: '目的：\n（同じ内容を記載）\n\nこのコードをレビューして\n・設計的に問題があれば修正\n・不要な変更はしない\n・最終的な完成コードを1つにまとめて\n\n制約：\n・ES5準拠（アロー関数・バッククォート禁止）\n・Code.gs再デプロイ時は新バージョン必須'
+      }
+    ]
+  },
+  c: {
+    badge: 'C',
+    title: '分割解析（段階的コンテキスト投入）',
+    desc: '原因不明・全体解析が必要な大規模作業。P1でスキーマ把握→P3でシート単位実装。',
+    token: 'トークン戦略: P1→P3（スキーマ→列グループ分割で段階移行）',
+    prompts: [
+      {
+        label: 'Step 1 — 全体構造の把握（P1: スキーマのみ）',
+        text: '目的：\n（何が困っているか）\n\nプロジェクト構造：\n・Code.gs（GASバックエンド）\n・index.html（GitHub Pages フロントエンド）\n・DB: Google Sheets「住民説明会SaaS_DB」\n  - シート一覧: 事業者情報, 発電所情報, 説明会セッション, METIチェックルール, タスク管理, スライド入力データ\n\nまず全体構造を前提に\n・原因を特定して\n・影響範囲を説明して'
+      },
+      {
+        label: 'Step 2 — 該当箇所の修正（P3: 対象シート/関数のみ）',
+        text: '目的：\n（Step1で特定した原因に対して）\n\n以下の関数/シートだけを対象に修正して\n・影響範囲: （Step1の結果を記載）\n・修正コードを出して\n・不要な変更はしない\n・最終的な完成コードを1つにまとめて\n\n制約：\n・ES5準拠（アロー関数・バッククォート禁止）\n・callGAS()パターン使用\n・Code.gs再デプロイ時は新バージョン必須'
+      }
+    ]
+  }
+};
+
+function showResult(type) {
+  showScreen('screenResult');
+  var r = results[type];
+  var colorClass = 'type-' + type;
+
+  var html = '';
+  html += '<div class="result-card ' + colorClass + '">';
+  html += '<div class="result-badge">' + r.badge + '</div>';
+  html += '<div class="result-title">' + r.title + '</div>';
+  html += '<div class="result-desc">' + r.desc + '</div>';
+  html += '<div class="result-token">' + r.token + '</div>';
+  html += '</div>';
+
+  html += '<div class="prompt-section">';
+  html += '<h3>プロンプトテンプレート</h3>';
+  for (var i = 0; i < r.prompts.length; i++) {
+    var p = r.prompts[i];
+    var blockId = 'prompt-' + type + '-' + i;
+    html += '<div class="prompt-block" id="block-' + blockId + '">';
+    html += '<div class="prompt-step-label">' + p.label + '</div>';
+    html += '<pre id="' + blockId + '">' + escapeHtml(p.text) + '</pre>';
+    html += '<button class="copy-btn" onclick="copyPrompt(\'' + blockId + '\', this)">COPY</button>';
+    html += '</div>';
+  }
+  html += '</div>';
+
+  html += '<div class="rules">';
+  html += '<h3>絶対ルール（精度安定のために必守）</h3>';
+  html += '<div class="rule-item"><span class="num">01</span>「目的」を必ず書く — これがないと精度崩壊</div>';
+  html += '<div class="rule-item"><span class="num">02</span>「最終コードを1つにまとめて」と書く — 分裂回答防止</div>';
+  html += '<div class="rule-item"><span class="num">03</span>「不要な変更はしない」を入れる — 過剰修正防止</div>';
+  html += '</div>';
+
+  html += '<div class="actions">';
+  html += '<button class="btn btn-primary" onclick="startQuiz()">もう一度判定する</button>';
+  html += '<button class="btn btn-ghost" onclick="showScreen(\'screenStart\');document.getElementById(\'phaseBar\').innerHTML=\'\'">トップに戻る</button>';
+  html += '</div>';
+
+  html += '<div class="footer">ABC_JUDGE v1.0 — SDHスズユウ 経営企画室</div>';
+
+  document.getElementById('resultContent').innerHTML = html;
+}
+
+function copyPrompt(id, btn) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var text = el.textContent;
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(function() {
+      btn.textContent = 'COPIED';
+      btn.className = 'copy-btn copied';
+      setTimeout(function() {
+        btn.textContent = 'COPY';
+        btn.className = 'copy-btn';
+      }, 1500);
+    });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = 'COPIED';
+    btn.className = 'copy-btn copied';
+    setTimeout(function() {
+      btn.textContent = 'COPY';
+      btn.className = 'copy-btn';
+    }, 1500);
+  }
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
