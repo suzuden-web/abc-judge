@@ -3,478 +3,384 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ABC判定 — AI作業振り分けツール</title>
+<title>ABC判定ツール</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;500;700;900&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0a0e17;--surface:#111827;--surface2:#1a2332;--surface3:#243044;
-  --border:#2a3a50;--border-glow:#3b5998;
-  --text:#e2e8f0;--text-dim:#8899aa;--text-bright:#f8fafc;
-  --green:#22c55e;--green-dim:#166534;--green-glow:rgba(34,197,94,.15);
-  --yellow:#eab308;--yellow-dim:#854d0e;--yellow-glow:rgba(234,179,8,.12);
-  --red:#ef4444;--red-dim:#991b1b;--red-glow:rgba(239,68,68,.12);
-  --cyan:#06b6d4;--cyan-dim:#155e75;--cyan-glow:rgba(6,182,212,.1);
-  --mono:'IBM Plex Mono',monospace;--sans:'Noto Sans JP',sans-serif;
-  --radius:6px;
+  --bg:#0a0a0f;--surface:#13131a;--surface2:#1a1a24;--border:#2a2a3a;
+  --text:#e8e8f0;--text-dim:#8888a0;--text-muted:#555568;
+  --green:#22c55e;--green-bg:rgba(34,197,94,.08);--green-border:rgba(34,197,94,.25);
+  --yellow:#eab308;--yellow-bg:rgba(234,179,8,.08);--yellow-border:rgba(234,179,8,.25);
+  --red:#ef4444;--red-bg:rgba(239,68,68,.08);--red-border:rgba(239,68,68,.25);
+  --accent:#6366f1;--accent-bg:rgba(99,102,241,.08);
+  --radius:12px;--radius-sm:8px;
 }
 html{font-size:15px}
 body{
-  font-family:var(--sans);background:var(--bg);color:var(--text);
+  font-family:'Noto Sans JP',sans-serif;font-weight:400;
+  background:var(--bg);color:var(--text);
   min-height:100vh;line-height:1.7;
   background-image:
-    radial-gradient(ellipse 80% 60% at 50% 0%,rgba(59,89,152,.08),transparent),
-    radial-gradient(circle at 80% 80%,rgba(6,182,212,.04),transparent);
+    radial-gradient(ellipse 80% 60% at 50% -20%,rgba(99,102,241,.06) 0%,transparent 70%),
+    radial-gradient(ellipse 50% 40% at 80% 100%,rgba(34,197,94,.04) 0%,transparent 60%);
 }
-
-/* ===== LAYOUT ===== */
-.app{max-width:720px;margin:0 auto;padding:24px 16px 80px}
-
-/* ===== HEADER ===== */
-.header{text-align:center;padding:40px 0 32px;position:relative}
-.header::after{
-  content:'';display:block;width:60px;height:2px;
-  background:linear-gradient(90deg,var(--cyan),var(--green));
-  margin:20px auto 0;border-radius:1px;
+.app{max-width:640px;margin:0 auto;padding:24px 16px 80px}
+header{text-align:center;padding:40px 0 32px}
+header h1{
+  font-size:1.8rem;font-weight:900;letter-spacing:-.02em;
+  background:linear-gradient(135deg,var(--text) 0%,var(--text-dim) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
 }
-.header h1{
-  font-family:var(--mono);font-size:1.6rem;font-weight:600;
-  color:var(--text-bright);letter-spacing:-.02em;
-}
-.header p{color:var(--text-dim);font-size:.82rem;margin-top:8px;font-weight:300}
-
-/* ===== PHASE INDICATOR ===== */
-.phase-bar{
-  display:flex;gap:4px;margin:0 0 32px;padding:0 4px;
-}
-.phase-dot{
-  flex:1;height:3px;border-radius:2px;background:var(--border);
-  transition:background .4s,box-shadow .4s;
-}
-.phase-dot.active{background:var(--cyan);box-shadow:0 0 8px var(--cyan-glow)}
-.phase-dot.done{background:var(--green)}
-
-/* ===== QUESTION CARDS ===== */
-.screen{display:none;animation:fadeIn .35s ease}
-.screen.active{display:block}
-@keyframes fadeIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
-
-.q-card{
+header p{color:var(--text-dim);font-size:.85rem;margin-top:8px;font-weight:300}
+.card{
   background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);padding:28px 24px;
-  position:relative;overflow:hidden;
+  border-radius:var(--radius);padding:24px;margin-bottom:16px;transition:all .3s ease;
 }
-.q-card::before{
+.card.active{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 8px 32px rgba(99,102,241,.1)}
+.quiz-section{display:none}
+.quiz-section.visible{display:block;animation:fadeUp .4s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.question-card{position:relative;overflow:hidden}
+.question-card::before{
   content:'';position:absolute;top:0;left:0;right:0;height:2px;
-  background:linear-gradient(90deg,var(--cyan),transparent);
+  background:linear-gradient(90deg,var(--accent),transparent);
 }
-.q-label{
-  font-family:var(--mono);font-size:.7rem;color:var(--cyan);
-  text-transform:uppercase;letter-spacing:.12em;margin-bottom:12px;
+.q-number{
+  font-family:'IBM Plex Mono',monospace;font-size:.7rem;font-weight:600;
+  color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px;
 }
-.q-text{font-size:1.05rem;font-weight:500;color:var(--text-bright);margin-bottom:24px}
-
-.q-options{display:flex;flex-direction:column;gap:10px}
-.q-btn{
-  background:var(--surface2);border:1px solid var(--border);
-  border-radius:var(--radius);padding:14px 18px;
-  color:var(--text);font-size:.92rem;font-family:var(--sans);
-  cursor:pointer;transition:all .2s;text-align:left;
-  display:flex;align-items:center;gap:12px;
+.q-text{font-size:1.05rem;font-weight:700;margin-bottom:20px;line-height:1.5}
+.q-group{
+  font-size:.7rem;font-weight:500;margin-bottom:16px;padding:4px 10px;
+  border-radius:12px;display:inline-block;
 }
-.q-btn:hover{border-color:var(--cyan);background:var(--surface3);transform:translateX(4px)}
-.q-btn .key{
-  font-family:var(--mono);font-size:.7rem;color:var(--text-dim);
-  background:var(--bg);padding:3px 8px;border-radius:3px;
-  min-width:28px;text-align:center;flex-shrink:0;
+.q-group.A{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
+.q-group.B{background:var(--yellow-bg);color:var(--yellow);border:1px solid var(--yellow-border)}
+.q-group.C{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
+.btn-row{display:flex;gap:10px}
+.btn{
+  flex:1;padding:14px 16px;border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:var(--surface2);color:var(--text);font-family:inherit;
+  font-size:.9rem;font-weight:500;cursor:pointer;transition:all .2s ease;text-align:center;
 }
-
-/* ===== RESULT CARDS ===== */
-.result-card{
-  border-radius:var(--radius);padding:28px 24px;
-  position:relative;overflow:hidden;
-}
-.result-card.type-a{background:var(--green-glow);border:1px solid var(--green-dim)}
-.result-card.type-b{background:var(--yellow-glow);border:1px solid var(--yellow-dim)}
-.result-card.type-c{background:var(--red-glow);border:1px solid var(--red-dim)}
-
+.btn:hover{border-color:var(--accent);background:var(--accent-bg)}
+.btn:active{transform:scale(.97)}
+.btn-yes{border-color:var(--green-border);background:var(--green-bg)}
+.btn-yes:hover{border-color:var(--green);box-shadow:0 0 16px rgba(34,197,94,.15)}
+.progress-bar{height:3px;background:var(--surface2);border-radius:2px;margin-bottom:24px;overflow:hidden}
+.progress-fill{height:100%;background:var(--accent);transition:width .4s ease;border-radius:2px}
+.result-section{display:none}
+.result-section.visible{display:block;animation:fadeUp .5s ease}
 .result-badge{
   display:inline-flex;align-items:center;gap:8px;
-  font-family:var(--mono);font-size:1.3rem;font-weight:600;
-  margin-bottom:8px;
+  padding:6px 16px;border-radius:20px;font-weight:700;font-size:.85rem;margin-bottom:16px;
 }
-.result-card.type-a .result-badge{color:var(--green)}
-.result-card.type-b .result-badge{color:var(--yellow)}
-.result-card.type-c .result-badge{color:var(--red)}
-
-.result-title{font-size:.95rem;color:var(--text-bright);font-weight:500;margin-bottom:4px}
-.result-desc{font-size:.82rem;color:var(--text-dim);font-weight:300;line-height:1.6}
-.result-token{
-  display:inline-block;margin-top:12px;
-  font-family:var(--mono);font-size:.72rem;
-  padding:4px 10px;border-radius:3px;
-  background:rgba(255,255,255,.05);color:var(--text-dim);
-}
-
-/* ===== PROMPT TEMPLATE ===== */
-.prompt-section{margin-top:24px}
-.prompt-section h3{
-  font-family:var(--mono);font-size:.75rem;color:var(--cyan);
-  text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;
+.result-badge.A{background:var(--green-bg);border:1px solid var(--green-border);color:var(--green)}
+.result-badge.B{background:var(--yellow-bg);border:1px solid var(--yellow-border);color:var(--yellow)}
+.result-badge.C{background:var(--red-bg);border:1px solid var(--red-border);color:var(--red)}
+.result-title{font-size:1.3rem;font-weight:900;margin-bottom:6px}
+.result-desc{color:var(--text-dim);font-size:.85rem;margin-bottom:20px;line-height:1.6}
+.strategy-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.tag{
+  padding:4px 12px;border-radius:16px;font-size:.75rem;font-weight:500;
+  border:1px solid var(--border);color:var(--text-dim);background:var(--surface2);
 }
 .prompt-block{
-  background:var(--bg);border:1px solid var(--border);
-  border-radius:var(--radius);padding:16px;position:relative;
-  margin-bottom:12px;
+  background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);
+  margin-bottom:12px;overflow:hidden;
 }
-.prompt-block pre{
-  font-family:var(--mono);font-size:.8rem;color:var(--text);
-  white-space:pre-wrap;word-break:break-all;line-height:1.8;
+.prompt-header{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 16px;border-bottom:1px solid var(--border);
 }
-.prompt-step-label{
-  font-family:var(--mono);font-size:.65rem;
-  color:var(--text-dim);margin-bottom:8px;
-  padding-bottom:6px;border-bottom:1px solid var(--border);
-}
+.prompt-label{font-size:.75rem;font-weight:600;color:var(--text-dim);letter-spacing:.05em}
 .copy-btn{
-  position:absolute;top:10px;right:10px;
-  background:var(--surface2);border:1px solid var(--border);
-  border-radius:4px;padding:5px 10px;
-  font-family:var(--mono);font-size:.65rem;color:var(--text-dim);
-  cursor:pointer;transition:all .2s;
+  padding:4px 12px;border:1px solid var(--border);border-radius:6px;
+  background:transparent;color:var(--text-dim);font-family:inherit;
+  font-size:.7rem;cursor:pointer;transition:all .2s ease;
 }
-.copy-btn:hover{border-color:var(--cyan);color:var(--cyan)}
-.copy-btn.copied{color:var(--green);border-color:var(--green)}
-
-/* ===== RULES SIDEBAR ===== */
-.rules{
-  margin-top:28px;padding:20px;
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--radius);
+.copy-btn:hover{border-color:var(--accent);color:var(--accent)}
+.copy-btn.copied{border-color:var(--green);color:var(--green)}
+.prompt-body{
+  padding:16px;font-family:'IBM Plex Mono',monospace;font-size:.78rem;
+  line-height:1.8;color:var(--text);white-space:pre-wrap;word-break:break-all;
 }
-.rules h3{
-  font-family:var(--mono);font-size:.72rem;color:var(--yellow);
-  text-transform:uppercase;letter-spacing:.1em;margin-bottom:14px;
+.token-map{
+  display:grid;grid-template-columns:auto 1fr;gap:6px 16px;
+  padding:16px;background:var(--surface2);border-radius:var(--radius-sm);margin-top:12px;font-size:.8rem;
 }
-.rule-item{
-  display:flex;gap:10px;align-items:flex-start;
-  margin-bottom:10px;font-size:.82rem;color:var(--text-dim);
+.token-map dt{font-weight:600;color:var(--accent);font-family:'IBM Plex Mono',monospace}
+.token-map dd{color:var(--text-dim)}
+.rules-bar{
+  position:fixed;bottom:0;left:0;right:0;
+  background:rgba(10,10,15,.92);backdrop-filter:blur(12px);
+  border-top:1px solid var(--border);padding:10px 16px;
+  display:flex;justify-content:center;gap:20px;
+  font-size:.7rem;color:var(--text-muted);z-index:100;
 }
-.rule-item .num{
-  font-family:var(--mono);font-size:.7rem;color:var(--yellow);
-  flex-shrink:0;padding-top:2px;
+.rules-bar span{display:flex;align-items:center;gap:4px}
+.rules-bar .dot{width:4px;height:4px;border-radius:50%;background:var(--accent);flex-shrink:0}
+.reset-btn{
+  display:block;margin:24px auto 0;padding:10px 32px;
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  background:transparent;color:var(--text-dim);font-family:inherit;
+  font-size:.85rem;cursor:pointer;transition:all .2s ease;
 }
-
-/* ===== ACTIONS ===== */
-.actions{display:flex;gap:10px;margin-top:24px;flex-wrap:wrap}
-.btn{
-  font-family:var(--sans);font-size:.85rem;font-weight:500;
-  padding:12px 20px;border-radius:var(--radius);cursor:pointer;
-  border:1px solid var(--border);transition:all .2s;
+.reset-btn:hover{border-color:var(--accent);color:var(--text)}
+.lost-btn{
+  display:block;margin:12px auto 0;padding:8px 24px;
+  border:1px dashed var(--border);border-radius:var(--radius-sm);
+  background:transparent;color:var(--text-muted);font-family:inherit;
+  font-size:.78rem;cursor:pointer;transition:all .2s ease;
 }
-.btn-primary{background:var(--cyan-dim);color:var(--text-bright);border-color:var(--cyan-dim)}
-.btn-primary:hover{background:var(--cyan);color:var(--bg)}
-.btn-ghost{background:transparent;color:var(--text-dim)}
-.btn-ghost:hover{border-color:var(--text-dim);color:var(--text)}
-
-/* ===== FOOTER ===== */
-.footer{
-  text-align:center;margin-top:48px;padding-top:24px;
-  border-top:1px solid var(--border);
-  font-size:.72rem;color:var(--text-dim);font-family:var(--mono);
-}
-
-/* ===== RESPONSIVE ===== */
+.lost-btn:hover{border-color:var(--yellow);color:var(--yellow)}
 @media(max-width:480px){
-  .app{padding:16px 12px 60px}
-  .header h1{font-size:1.3rem}
-  .q-card{padding:20px 16px}
-  .result-card{padding:20px 16px}
+  html{font-size:14px}
+  .app{padding:16px 12px 72px}
+  header{padding:28px 0 24px}
+  .rules-bar{gap:10px;font-size:.6rem;padding:8px 12px}
 }
 </style>
 </head>
 <body>
 <div class="app">
+  <header>
+    <h1>ABC 判定ツール</h1>
+    <p>AI作業振り分け — 5秒で戦略を決定</p>
+  </header>
 
-  <div class="header">
-    <h1>ABC_JUDGE</h1>
-    <p>AI作業振り分け — 5秒で判定、そのまま投げる</p>
-  </div>
-
-  <div class="phase-bar" id="phaseBar"></div>
-
-  <!-- ===== SCREEN: START ===== -->
-  <div class="screen active" id="screenStart">
-    <div class="q-card">
-      <div class="q-label">作業を分類する</div>
-      <div class="q-text">これから行う作業の内容を確認します。<br>質問に答えるだけでA/B/Cパターンと最適プロンプトが決まります。</div>
-      <div class="q-options">
-        <button class="q-btn" onclick="startQuiz()">
-          <span class="key">▶</span> 判定を開始する
-        </button>
+  <div id="quiz" class="quiz-section visible">
+    <div class="progress-bar"><div class="progress-fill" id="progress" style="width:0%"></div></div>
+    <div id="question-container" class="card question-card active">
+      <div id="q-group" class="q-group A"></div>
+      <div class="q-number" id="q-step">STEP 1 / 12</div>
+      <div class="q-text" id="q-text"></div>
+      <div class="btn-row">
+        <button class="btn btn-yes" onclick="answer(true)">はい</button>
+        <button class="btn btn-no" onclick="answer(false)">いいえ</button>
       </div>
     </div>
+    <button class="lost-btn" onclick="showLost()">判断に迷っている…</button>
+  </div>
 
-    <div class="rules" style="margin-top:20px">
-      <h3>パターン概要</h3>
-      <div class="rule-item"><span class="num" style="color:var(--green)">A</span> 単発プロンプト — 1関数修正・エラー対応（トークン戦略 P2相当）</div>
-      <div class="rule-item"><span class="num" style="color:var(--yellow)">B</span> 2段階実行 — 設計→実装の分離（トークン戦略 P3相当）</div>
-      <div class="rule-item"><span class="num" style="color:var(--red)">C</span> 分割解析 — 全体把握が必要な大規模作業（P1→P3段階移行）</div>
+  <div id="result" class="result-section">
+    <div class="card">
+      <div class="result-badge" id="r-badge"></div>
+      <div class="result-title" id="r-title"></div>
+      <div class="result-desc" id="r-desc"></div>
+      <div class="strategy-row" id="r-tags"></div>
+      <div class="token-map" id="r-token"></div>
     </div>
+    <div id="prompts-container"></div>
+    <button class="reset-btn" onclick="reset()">もう一度判定する</button>
   </div>
 
-  <!-- ===== SCREEN: QUESTIONS ===== -->
-  <div class="screen" id="screenQuiz">
-    <div class="q-card">
-      <div class="q-label" id="qLabel">Q1 / 4</div>
-      <div class="q-text" id="qText"></div>
-      <div class="q-options" id="qOptions"></div>
+  <div id="lost" class="result-section">
+    <div class="card">
+      <div class="result-badge B">迷った時の裏技</div>
+      <div class="result-title">AIに判定させる</div>
+      <div class="result-desc">以下のプロンプトをそのまま投げて、A/B/Cの判定をAI自身にさせましょう。</div>
     </div>
-  </div>
+    <div class="prompt-block">
+      <div class="prompt-header">
+        <span class="prompt-label">判定依頼プロンプト</span>
+        <button class="copy-btn" id="lost-copy">コピー</button>
+      </div>
+      <div class="prompt-body" id="lost-prompt">以下の作業について、どの戦略で進めるべきか判定して。
 
-  <!-- ===== SCREEN: RESULT ===== -->
-  <div class="screen" id="screenResult">
-    <div id="resultContent"></div>
-  </div>
+A（単発修正）：1関数・原因明確・1〜2行で説明可能
+B（設計＋実装）：新機能・複数関数・既存ロジック変更
+C（段階解析）：原因不明・複数ファイル・全体把握が必要
 
+やりたいこと：
+（ここに記述）
+
+理由も教えて。</div>
+    </div>
+    <button class="reset-btn" onclick="reset()">判定に戻る</button>
+  </div>
+</div>
+
+<div class="rules-bar">
+  <span><span class="dot"></span>目的を必ず書く</span>
+  <span><span class="dot"></span>最終コードを1つに</span>
+  <span><span class="dot"></span>不要な変更はしない</span>
 </div>
 
 <script>
-// ===== QUESTION DATA =====
-var questions = [
-  {
-    text: '触るのは1つの関数だけ？',
-    options: [
-      { label: 'はい — 1関数で完結する', value: 'a' },
-      { label: 'いいえ — 複数箇所に影響する', value: 'next' }
-    ]
-  },
-  {
-    text: 'エラー箇所や修正内容を1〜2行で説明できる？',
-    options: [
-      { label: 'はい — 明確に特定できる', value: 'a' },
-      { label: 'いいえ — 説明が複雑になる', value: 'next' }
-    ]
-  },
-  {
-    text: '新機能の追加、または既存ロジックの変更？',
-    options: [
-      { label: 'はい — 新機能 or ロジック変更', value: 'b' },
-      { label: 'いいえ — もっと広範囲', value: 'next' }
-    ]
-  },
-  {
-    text: '原因箇所は特定できている？',
-    options: [
-      { label: 'はい — 場所は分かるが複数関数にまたがる', value: 'b' },
-      { label: 'いいえ — どこが原因か分からない / 全体を見たい', value: 'c' }
-    ]
-  }
+var questionsA = [
+  '触るのは1つの関数だけ？',
+  'エラー箇所が関数名で特定できる？',
+  '修正内容を1〜2行で説明できる？',
+  '「〜して」「直して」で済む依頼？'
+];
+var questionsB = [
+  '新機能を追加する作業？',
+  '複数の関数に影響がある？',
+  '既存ロジックを変更する？',
+  '「〜のような機能」と説明している？'
+];
+var questionsC = [
+  'どこが原因か分からない？',
+  '複数ファイルにまたがる？',
+  '「全体を見て」と言いたい？',
+  'コピペしたくなるほどコード量が多い？'
 ];
 
-var currentQ = 0;
-var result = null;
-var totalSteps = questions.length;
+var allGroups = [
+  { id: 'A', label: 'A判定チェック', questions: questionsA },
+  { id: 'B', label: 'B判定チェック', questions: questionsB },
+  { id: 'C', label: 'C判定チェック', questions: questionsC }
+];
 
-function initPhaseBar() {
-  var bar = document.getElementById('phaseBar');
-  bar.innerHTML = '';
-  for (var i = 0; i < totalSteps; i++) {
-    var dot = document.createElement('div');
-    dot.className = 'phase-dot';
-    dot.id = 'phase-' + i;
-    bar.appendChild(dot);
-  }
+var groupIdx = 0, qIdx = 0, currentQuestion = 0;
+var totalQuestions = 0;
+for (var g = 0; g < allGroups.length; g++) totalQuestions += allGroups[g].questions.length;
+
+function showQuestion() {
+  var group = allGroups[groupIdx];
+  if (!group) { showResult('C'); return; }
+  var q = group.questions[qIdx];
+  if (!q) { showResult('C'); return; }
+  currentQuestion++;
+  document.getElementById('q-step').textContent = 'STEP ' + currentQuestion + ' / ' + totalQuestions;
+  document.getElementById('q-text').textContent = q;
+  document.getElementById('progress').style.width = ((currentQuestion - 1) / totalQuestions * 100) + '%';
+  var groupEl = document.getElementById('q-group');
+  groupEl.className = 'q-group ' + group.id;
+  groupEl.textContent = group.label;
+  var container = document.getElementById('question-container');
+  container.style.animation = 'none';
+  container.offsetHeight;
+  container.style.animation = 'fadeUp .3s ease';
 }
 
-function updatePhaseBar(step) {
-  for (var i = 0; i < totalSteps; i++) {
-    var dot = document.getElementById('phase-' + i);
-    if (!dot) continue;
-    dot.className = 'phase-dot';
-    if (i < step) dot.className += ' done';
-    if (i === step) dot.className += ' active';
-  }
+function answer(yes) {
+  if (yes) { showResult(allGroups[groupIdx].id); return; }
+  qIdx++;
+  if (qIdx >= allGroups[groupIdx].questions.length) { groupIdx++; qIdx = 0; }
+  showQuestion();
 }
 
-function showScreen(id) {
-  var screens = document.querySelectorAll('.screen');
-  for (var i = 0; i < screens.length; i++) {
-    screens[i].className = 'screen';
-  }
-  document.getElementById(id).className = 'screen active';
-}
-
-function startQuiz() {
-  currentQ = 0;
-  result = null;
-  initPhaseBar();
-  showQuestion(0);
-  showScreen('screenQuiz');
-}
-
-function showQuestion(index) {
-  var q = questions[index];
-  document.getElementById('qLabel').textContent = 'Q' + (index + 1) + ' / ' + totalSteps;
-  document.getElementById('qText').textContent = q.text;
-
-  var opts = document.getElementById('qOptions');
-  opts.innerHTML = '';
-  for (var i = 0; i < q.options.length; i++) {
-    (function(opt, idx) {
-      var btn = document.createElement('button');
-      btn.className = 'q-btn';
-      btn.innerHTML = '<span class="key">' + (idx + 1) + '</span> ' + opt.label;
-      btn.onclick = function() { answer(opt.value); };
-      opts.appendChild(btn);
-    })(q.options[i], i);
-  }
-
-  updatePhaseBar(index);
-}
-
-function answer(val) {
-  if (val === 'a' || val === 'b' || val === 'c') {
-    result = val;
-    for (var i = currentQ; i < totalSteps; i++) {
-      var dot = document.getElementById('phase-' + i);
-      if (dot) dot.className = 'phase-dot done';
-    }
-    showResult(result);
-    return;
-  }
-  currentQ++;
-  if (currentQ < questions.length) {
-    showQuestion(currentQ);
-  } else {
-    result = 'c';
-    showResult(result);
-  }
-}
-
-// ===== RESULT DATA =====
 var results = {
-  a: {
-    badge: 'A',
-    title: '単発プロンプト',
-    desc: '1関数の修正・エラー対応。AIに直接投げて最終コードを受け取る。',
-    token: 'トークン戦略: P2（2〜3サンプル行のみ添付）',
-    prompts: [
-      {
-        label: 'そのまま投げるプロンプト',
-        text: '目的：\n（何をしたいかを1行で）\n\nこのコードを修正して\n・変更は必要最小限にして\n・他の部分は絶対に触らない\n・最終コードだけ出して\n\n制約：\n・ES5準拠（アロー関数・バッククォート禁止）\n・callGAS()パターン使用\n・try-catch + Logger.log 維持'
-      }
-    ]
+  A: {
+    label: 'A — 単発修正',
+    title: 'ピンポイント修正',
+    desc: '対象が明確な小修正。AIに1回投げて完了コードを受け取る。',
+    tags: ['単発プロンプト', 'P2：サンプル行のみ', '最速完了'],
+    token: { strategy: 'P2', detail: '該当関数 + 2〜3行のサンプルデータのみ渡す' },
+    prompts: [{
+      label: 'プロンプトテンプレート',
+      text: '目的：\n（何をしたいかを1行で）\n\nこのコードを修正して\n・変更は必要最小限\n・他の部分は絶対に触らない\n・最終コードだけ出して\n\n【制約】\n・ES5準拠（バッククォート・アロー関数禁止）\n・callGAS()パターン使用\n・Code.gs再デプロイ時は新バージョン必須'
+    }]
   },
-  b: {
-    badge: 'B',
-    title: '2段階実行（設計 → 実装）',
-    desc: '新機能追加・複数関数にまたがるロジック変更。設計ドラフトと実装を分けて精度を上げる。',
-    token: 'トークン戦略: P3（シート単位分割、1責務ごとに会話分離）',
-    prompts: [
-      {
-        label: 'Step 1 — 設計ドラフト',
-        text: '目的：\n（やりたいこと）\n\nこの機能を実装して\n・シンプルでOK\n・既存構造に合わせて\n・過剰な最適化は不要\n\n制約：\n・ES5準拠（アロー関数・バッククォート禁止）\n・callGAS()パターン使用\n・plant_idフィルタ前提\n・try-catch + Logger.log 維持'
-      },
-      {
-        label: 'Step 2 — レビュー＆仕上げ',
-        text: '目的：\n（同じ内容を記載）\n\nこのコードをレビューして\n・設計的に問題があれば修正\n・不要な変更はしない\n・最終的な完成コードを1つにまとめて\n\n制約：\n・ES5準拠（アロー関数・バッククォート禁止）\n・Code.gs再デプロイ時は新バージョン必須'
-      }
-    ]
+  B: {
+    label: 'B — 設計＋実装',
+    title: '2段階アプローチ',
+    desc: '新機能や複数関数にまたがる変更。設計ドラフト→レビュー仕上げの2段階で品質を担保。',
+    tags: ['設計→実装', 'P3：シート単位分割', '品質担保'],
+    token: { strategy: 'P3', detail: '関連シートのカラム定義 + 該当関数群のみ。1会話1責務。' },
+    prompts: [{
+      label: 'Step 1 — ドラフト（設計）',
+      text: '目的：\n（やりたいこと）\n\nこの機能を実装して\n・シンプルでOK\n・既存構造に合わせて\n・過剰な最適化は不要\n\n【制約】\n・ES5準拠（バッククォート・アロー関数禁止）\n・callGAS()パターン使用\n・Google Sheets = DB（住民説明会SaaS_DB）\n・全データはplant_idでフィルタ'
+    },{
+      label: 'Step 2 — レビュー（仕上げ）',
+      text: '目的：\n（同上）\n\nこのコードをレビューして\n・設計的に問題があれば修正\n・不要な変更はしない\n・最終的な完成コードを1つにまとめて\n\n【制約】\n・ES5準拠（バッククォート・アロー関数禁止）\n・try-catch + Logger.log 必須\n・Code.gs再デプロイ時は新バージョン必須'
+    }]
   },
-  c: {
-    badge: 'C',
-    title: '分割解析（段階的コンテキスト投入）',
-    desc: '原因不明・全体解析が必要な大規模作業。P1でスキーマ把握→P3でシート単位実装。',
-    token: 'トークン戦略: P1→P3（スキーマ→列グループ分割で段階移行）',
-    prompts: [
-      {
-        label: 'Step 1 — 全体構造の把握（P1: スキーマのみ）',
-        text: '目的：\n（何が困っているか）\n\nプロジェクト構造：\n・Code.gs（GASバックエンド）\n・index.html（GitHub Pages フロントエンド）\n・DB: Google Sheets「住民説明会SaaS_DB」\n  - シート一覧: 事業者情報, 発電所情報, 説明会セッション, METIチェックルール, タスク管理, スライド入力データ\n\nまず全体構造を前提に\n・原因を特定して\n・影響範囲を説明して'
-      },
-      {
-        label: 'Step 2 — 該当箇所の修正（P3: 対象シート/関数のみ）',
-        text: '目的：\n（Step1で特定した原因に対して）\n\n以下の関数/シートだけを対象に修正して\n・影響範囲: （Step1の結果を記載）\n・修正コードを出して\n・不要な変更はしない\n・最終的な完成コードを1つにまとめて\n\n制約：\n・ES5準拠（アロー関数・バッククォート禁止）\n・callGAS()パターン使用\n・Code.gs再デプロイ時は新バージョン必須'
-      }
-    ]
+  C: {
+    label: 'C — 段階解析',
+    title: 'コンテキスト分割＋段階解析',
+    desc: '原因不明・広範囲の問題。まずスキーマ設計で全体把握し、段階的に掘り下げる。',
+    tags: ['P1→P3段階移行', 'スキーマ先行', '全体解析'],
+    token: { strategy: 'P1→P3', detail: 'まずシート構造（カラム名のみ）で設計確認 → 特定シート単位で実装へ移行' },
+    prompts: [{
+      label: 'Step 1 — 全体把握（P1：スキーマのみ）',
+      text: '目的：\n（何が困っているか）\n\n以下はDB構造（シート名とカラム）：\n・事業者情報：[カラム一覧]\n・発電所情報：[カラム一覧]\n・説明会セッション：[カラム一覧]\n・タスク管理：[カラム一覧]\n\nこの構造を前提に\n・原因を特定して\n・影響範囲を説明して\n・修正方針を提示して（コードはまだ不要）'
+    },{
+      label: 'Step 2 — 実装（P3：該当部分のみ）',
+      text: '目的：\n（同上）\n\n修正方針に基づいて実装して\n・該当関数のコードを以下に貼付：\n[ここにコード]\n\n・最終コードだけ出して\n・不要な変更はしない\n\n【制約】\n・ES5準拠（バッククォート・アロー関数禁止）\n・callGAS()パターン使用\n・try-catch + Logger.log 必須\n・Code.gs再デプロイ時は新バージョン必須'
+    },{
+      label: '（任意）確認プロンプト',
+      text: '目的：\n（同上）\n\nこの修正は妥当か確認して\n・問題があれば最終版を出して\n・影響範囲に漏れがないか検証して'
+    }]
   }
 };
 
 function showResult(type) {
-  showScreen('screenResult');
   var r = results[type];
-  var colorClass = 'type-' + type;
-
-  var html = '';
-  html += '<div class="result-card ' + colorClass + '">';
-  html += '<div class="result-badge">' + r.badge + '</div>';
-  html += '<div class="result-title">' + r.title + '</div>';
-  html += '<div class="result-desc">' + r.desc + '</div>';
-  html += '<div class="result-token">' + r.token + '</div>';
-  html += '</div>';
-
-  html += '<div class="prompt-section">';
-  html += '<h3>プロンプトテンプレート</h3>';
-  for (var i = 0; i < r.prompts.length; i++) {
-    var p = r.prompts[i];
-    var blockId = 'prompt-' + type + '-' + i;
-    html += '<div class="prompt-block" id="block-' + blockId + '">';
-    html += '<div class="prompt-step-label">' + p.label + '</div>';
-    html += '<pre id="' + blockId + '">' + escapeHtml(p.text) + '</pre>';
-    html += '<button class="copy-btn" onclick="copyPrompt(\'' + blockId + '\', this)">COPY</button>';
-    html += '</div>';
+  document.getElementById('quiz').className = 'quiz-section';
+  document.getElementById('lost').className = 'result-section';
+  document.getElementById('result').className = 'result-section visible';
+  var badge = document.getElementById('r-badge');
+  badge.className = 'result-badge ' + type;
+  badge.textContent = r.label;
+  document.getElementById('r-title').textContent = r.title;
+  document.getElementById('r-desc').textContent = r.desc;
+  var tagsHtml = '';
+  for (var i = 0; i < r.tags.length; i++) tagsHtml += '<span class="tag">' + r.tags[i] + '</span>';
+  document.getElementById('r-tags').innerHTML = tagsHtml;
+  document.getElementById('r-token').innerHTML = '<dt>' + r.token.strategy + '</dt><dd>' + r.token.detail + '</dd>';
+  var container = document.getElementById('prompts-container');
+  container.innerHTML = '';
+  for (var p = 0; p < r.prompts.length; p++) {
+    var prompt = r.prompts[p];
+    var block = document.createElement('div');
+    block.className = 'prompt-block';
+    block.innerHTML =
+      '<div class="prompt-header"><span class="prompt-label">' + prompt.label +
+      '</span><button class="copy-btn" data-idx="' + p + '">コピー</button></div>' +
+      '<div class="prompt-body">' + escapeHtml(prompt.text) + '</div>';
+    container.appendChild(block);
   }
-  html += '</div>';
-
-  html += '<div class="rules">';
-  html += '<h3>絶対ルール（精度安定のために必守）</h3>';
-  html += '<div class="rule-item"><span class="num">01</span>「目的」を必ず書く — これがないと精度崩壊</div>';
-  html += '<div class="rule-item"><span class="num">02</span>「最終コードを1つにまとめて」と書く — 分裂回答防止</div>';
-  html += '<div class="rule-item"><span class="num">03</span>「不要な変更はしない」を入れる — 過剰修正防止</div>';
-  html += '</div>';
-
-  html += '<div class="actions">';
-  html += '<button class="btn btn-primary" onclick="startQuiz()">もう一度判定する</button>';
-  html += '<button class="btn btn-ghost" onclick="showScreen(\'screenStart\');document.getElementById(\'phaseBar\').innerHTML=\'\'">トップに戻る</button>';
-  html += '</div>';
-
-  html += '<div class="footer">ABC_JUDGE v1.0 — SDHスズユウ 経営企画室</div>';
-
-  document.getElementById('resultContent').innerHTML = html;
+  var copyBtns = container.querySelectorAll('.copy-btn');
+  for (var c = 0; c < copyBtns.length; c++) {
+    (function(btn, prompts) {
+      btn.addEventListener('click', function() {
+        copyText(prompts[parseInt(btn.getAttribute('data-idx'))].text, btn);
+      });
+    })(copyBtns[c], r.prompts);
+  }
 }
 
-function copyPrompt(id, btn) {
-  var el = document.getElementById(id);
-  if (!el) return;
-  var text = el.textContent;
+function showLost() {
+  document.getElementById('quiz').className = 'quiz-section';
+  document.getElementById('result').className = 'result-section';
+  document.getElementById('lost').className = 'result-section visible';
+}
+
+function escapeHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function copyText(text, btn) {
   if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(function() {
-      btn.textContent = 'COPIED';
-      btn.className = 'copy-btn copied';
-      setTimeout(function() {
-        btn.textContent = 'COPY';
-        btn.className = 'copy-btn';
-      }, 1500);
-    });
+    navigator.clipboard.writeText(text).then(function() { flashCopied(btn); });
   } else {
     var ta = document.createElement('textarea');
-    ta.value = text;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
-    btn.textContent = 'COPIED';
-    btn.className = 'copy-btn copied';
-    setTimeout(function() {
-      btn.textContent = 'COPY';
-      btn.className = 'copy-btn';
-    }, 1500);
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    flashCopied(btn);
   }
 }
-
-function escapeHtml(str) {
-  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function flashCopied(btn) {
+  btn.textContent = 'コピー済み'; btn.classList.add('copied');
+  setTimeout(function() { btn.textContent = 'コピー'; btn.classList.remove('copied'); }, 2000);
 }
+
+document.getElementById('lost-copy').addEventListener('click', function() {
+  copyText(document.getElementById('lost-prompt').textContent, this);
+});
+
+function reset() {
+  groupIdx = 0; qIdx = 0; currentQuestion = 0;
+  document.getElementById('result').className = 'result-section';
+  document.getElementById('lost').className = 'result-section';
+  document.getElementById('quiz').className = 'quiz-section visible';
+  document.getElementById('progress').style.width = '0%';
+  showQuestion();
+}
+
+showQuestion();
 </script>
 </body>
 </html>
